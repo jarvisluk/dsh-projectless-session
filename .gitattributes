@@ -1,0 +1,3 @@
+* text=auto eol=lf
+lib/*.js linguist-generated=true
+lib/*.map linguist-generated=true
