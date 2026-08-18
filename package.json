@@ -1,6 +1,6 @@
 {
   "name": "dsh-projectless-session",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "DeepSeek Harness Web plugin for date-organized projectless sessions under Documents/DSH",
   "keywords": [
     "deepseek",
@@ -37,6 +37,7 @@
     "client": {
       "inject": [
         "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-ui-conversation"
       ],
@@ -62,6 +63,7 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-client-connection": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-client-ui-conversation": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-client-ui-primitives": "^0.1.0-rc.6",
@@ -71,6 +73,7 @@
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": { "optional": true },
     "@deepseek-ai/dsh-client-connection": { "optional": true },
+    "@deepseek-ai/dsh-client-locale": { "optional": true },
     "@deepseek-ai/dsh-client-runtime": { "optional": true },
     "@deepseek-ai/dsh-client-ui-conversation": { "optional": true },
     "@deepseek-ai/dsh-client-ui-primitives": { "optional": true },
@@ -80,6 +83,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-client-connection": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-locale": "0.1.0-rc.6",
     "@deepseek-ai/dsh-client-runtime": "0.1.0-rc.6",
     "@deepseek-ai/dsh-client-ui-conversation": "0.1.0-rc.6",
     "@deepseek-ai/dsh-client-ui-primitives": "0.1.0-rc.6",

@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import type { ClientContext, SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ClientConnectionRpc } from '@deepseek-ai/dsh-client-connection/client'
+import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   Button,
   IconFolderClose16,
@@ -20,6 +21,7 @@ import {
   type ProjectlessComposerMatch,
   type ProjectlessSessionHost,
 } from './session.ts'
+import { PROJECTLESS_LOCALE_NS, projectlessLocales } from './locales.ts'
 
 const PACKAGE_ID = 'dsh-projectless-session'
 const PROJECTLESS = '::projectless-session'
@@ -31,8 +33,9 @@ interface PickerActions {
   pickDirectory(): Promise<string | null>
 }
 
-type PickerProps = PropsRuntime<'conversation.hero.workspace'> & PickerActions
-type ProjectlessComposerProps = PropsRuntime<'conversation.composer'> & { matched: ProjectlessComposerMatch }
+type PickerProps = PropsRuntime<'conversation.hero.workspace'> & PickerActions & PropsLocale<typeof PROJECTLESS_LOCALE_NS>
+type ProjectlessComposerProps = PropsRuntime<'conversation.composer'> &
+  { matched: ProjectlessComposerMatch } & PropsLocale<typeof PROJECTLESS_LOCALE_NS>
 
 function errorMessage(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason)
@@ -49,6 +52,7 @@ function ProjectlessWorkspacePicker({
   createWorkspace,
   createProjectlessSession,
   pickDirectory,
+  t,
 }: PickerProps) {
   const workspaceState = useWorkspaces(state => state)
   const [busy, setBusy] = useState(false)
@@ -67,14 +71,14 @@ function ProjectlessWorkspacePicker({
   const footer: MenuEntry[] = [
     {
       id: PROJECTLESS,
-      label: '无工作区会话',
+      label: t('picker.projectless'),
       icon: <IconNewChatOutline16 size={16} />,
       disabled: busy,
     },
     { type: 'separator', id: 'projectless-separator' },
     {
       id: ADD_WORKSPACE,
-      label: '添加工作区…',
+      label: t('picker.addWorkspace'),
       icon: <IconPlusOutline16 size={16} />,
       disabled: busy,
     },
@@ -126,11 +130,11 @@ function ProjectlessWorkspacePicker({
       <Modal
         open={modalError !== null}
         onClose={() => { setModalError(null) }}
-        closeLabel="关闭"
-        title="无法创建无工作区会话"
+        closeLabel={t('modal.close')}
+        title={t('modal.createFailed')}
         footer={(
           <Button variant="primary" onClick={() => { setModalError(null) }}>
-            知道了
+            {t('modal.close')}
           </Button>
         )}
       >
@@ -147,6 +151,7 @@ function ProjectlessFirstPromptComposer({
   inputActions,
   useSession,
   useSessions,
+  t,
 }: ProjectlessComposerProps) {
   const input = useInput(state => state)
   const promptError = useSession(state => state.promptError)
@@ -167,10 +172,10 @@ function ProjectlessFirstPromptComposer({
 
   return (
     <div className="dsh-projectless-composer" data-projectless-session={matched.sessionId}>
-      <div className="dsh-projectless-heading">探索未至之境 <span>预览版</span></div>
+      <div className="dsh-projectless-heading">{t('composer.headline')} <span>{t('composer.preview')}</span></div>
       <div className="dsh-projectless-context">
         <IconFolderClose16 size={16} />
-        <span>无工作区会话</span>
+        <span>{t('composer.projectless')}</span>
         <span className="dsh-projectless-directory">{directoryName}</span>
       </div>
       <div className="dsh-projectless-card">
@@ -178,8 +183,8 @@ function ProjectlessFirstPromptComposer({
           ref={inputRef}
           value={draft}
           disabled={busy}
-          aria-label="描述你想要构建的内容"
-          placeholder="描述你想要构建的内容"
+          aria-label={t('composer.placeholder')}
+          placeholder={t('composer.placeholder')}
           rows={3}
           onChange={(event) => { inputActions.setDraft(event.currentTarget.value) }}
           onKeyDown={(event) => {
@@ -192,7 +197,7 @@ function ProjectlessFirstPromptComposer({
           type="button"
           className="dsh-projectless-send"
           disabled={!canSubmit}
-          aria-label="发送消息"
+          aria-label={t('composer.send')}
           onClick={submit}
         >
           ↑
@@ -203,7 +208,7 @@ function ProjectlessFirstPromptComposer({
           {promptError.error.message}
         </div>
       )}
-      <div className="dsh-projectless-hint">首条消息发送后进入标准会话界面</div>
+      <div className="dsh-projectless-hint">{t('composer.firstPromptHint')}</div>
     </div>
   )
 }
@@ -326,18 +331,23 @@ function installStyles(): () => void {
 }
 
 export const name = PACKAGE_ID
-export const inject = ['connection', 'slots', 'sessions', 'workspaces']
+export const inject = ['connection', 'locale', 'slots', 'sessions', 'workspaces']
 
 /** Install a priority -1 picker; DSH's built-in priority 0 picker remains the automatic fallback. */
 export function apply(ctx: ClientContext): void {
   ctx.effect(installStyles, `${PACKAGE_ID}: styles`)
+  ctx.effect(
+    () => ctx.locale.register(PROJECTLESS_LOCALE_NS, projectlessLocales),
+    `${PACKAGE_ID}: dictionaries`,
+  )
+  const t = ctx.locale.bind(PROJECTLESS_LOCALE_NS)
   const directSessions = ctx.sessions as typeof ctx.sessions & Partial<ProjectlessSessionHost>
   const actions = (): PickerActions => ({
     createWorkspace: input => ctx.workspaces.create(input),
     pickDirectory: () => ctx.workspaces.pickDirectory(),
     createProjectlessSession: async () => {
       if (directSessions.create === undefined) {
-        throw new Error('当前 DSH 版本不支持直接创建指定 cwd 的 Session')
+        throw new Error(t('error.unsupportedSessionRuntime'))
       }
       return createAndOpenProjectlessSession(
         {
@@ -356,6 +366,7 @@ export function apply(ctx: ClientContext): void {
       name: 'conversation.composer',
       priority: 0,
       select: ({ session }) => selectProjectlessBlankSession(session),
+      locale: PROJECTLESS_LOCALE_NS,
     },
     ProjectlessFirstPromptComposer,
   ))
@@ -365,6 +376,7 @@ export function apply(ctx: ClientContext): void {
       name: 'conversation.hero.workspace',
       priority: -1,
       inject: actions,
+      locale: PROJECTLESS_LOCALE_NS,
     },
     ProjectlessWorkspacePicker,
   ))

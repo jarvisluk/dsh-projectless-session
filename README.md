@@ -10,6 +10,8 @@
 
 插件使用 DSH 的 Cordis Host/Client 扩展接口，不修改 DeepSeek Harness 源码，也不会把目录注册成 Workspace。
 
+界面文案接入 DSH 的语言设置，支持简体中文和英文；切换 Language 后菜单、首条消息 Composer 和错误提示会即时更新，无需重启。
+
 ## 工作方式
 
 1. Host 通过仅限 loopback 的 DSH Connection RPC 创建目录。
@@ -42,7 +44,7 @@ dsh plugin --profile web add github:jarvisluk/dsh-projectless-session
 也可以从 Releases 下载 `dsh-projectless-session-*.tgz`：
 
 ```bash
-dsh plugin --profile web add /absolute/path/dsh-projectless-session-0.2.0.tgz
+dsh plugin --profile web add /absolute/path/dsh-projectless-session-0.3.0.tgz
 ```
 
 安装后重启正在运行的 `dsh web`。卸载：
@@ -59,6 +61,7 @@ dsh plugin --profile web remove dsh-projectless-session
 - 从创建开始就是未分组 Session，不创建或删除 Workspace 注册。
 - 空白阶段使用插件首条消息 Composer；消息被接受后切回 DSH 标准 Composer。
 - 重启 DSH 后仍可从“未分组”恢复并继续会话。
+- 跟随 DSH Language 设置即时切换简体中文或英文。
 - 文件系统 RPC 仅允许 loopback 页面调用，LAN 页面不能让 Host 写入 Documents。
 - 卸载插件后，内置优先级 `0` 的选择器自动恢复。
 
@@ -80,7 +83,7 @@ npm run verify
 npm pack
 ```
 
-测试包含目录安全约束、日期层级、直接 cwd Session 创建、纯 Composer 选择器，以及“零 Workspace 操作”断言。真实 DSH `0.1.0-rc.6` 浏览器流程也已验证；隔离测试 profile 的 Workspace 注册表在创建和发送消息后仍为空。
+测试包含双语词典完整性、目录安全约束、日期层级、直接 cwd Session 创建、纯 Composer 选择器，以及“零 Workspace 操作”断言。真实 DSH `0.1.0-rc.6` 浏览器流程也已验证；隔离测试 profile 的 Workspace 注册表在创建和发送消息后仍为空。
 
 ## English
 
@@ -91,6 +94,7 @@ It never creates, attaches, or deletes a Workspace registration. A scoped
 `conversation.composer` takeover handles the first blank prompt; after DSH
 accepts it, the standard composer resumes automatically. The Session, log,
 cwd, and directory remain available under DSH's built-in **Ungrouped** section.
+All UI copy follows DSH's Language setting and ships complete Simplified Chinese and English dictionaries.
 
 The Host filesystem operation is exposed through a loopback-only DSH
 Connection RPC. The plugin uses the DSH Session runtime and SlotRegistry
