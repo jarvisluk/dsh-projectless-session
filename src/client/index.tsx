@@ -15,20 +15,29 @@ import {
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
+  PROJECTLESS_ENTRY_ID,
+  createAbandonClaim,
   createAndOpenProjectlessSession,
-  detachWorkspaceAfterFirstPrompt,
+  createProjectlessRegistry,
+  isProjectlessPath,
   requestProjectlessDirectory,
+  requestProjectlessRoot,
+  requestRemoveProjectlessDirectory,
+  resolvePickerSelection,
+  sweepAbandonedProjectlessWorkspaces,
+  watchTemporaryWorkspace,
 } from './session.ts'
 import { PROJECTLESS_LOCALE_NS, projectlessLocales } from './locales.ts'
 
 const PACKAGE_ID = 'dsh-projectless-session'
-const PROJECTLESS = '::projectless-session'
+const PROJECTLESS = PROJECTLESS_ENTRY_ID
 const ADD_WORKSPACE = '::add-workspace'
 
 interface PickerActions {
   createWorkspace(input: { path: string }): Promise<WorkspaceView>
   createProjectlessSession(): Promise<SessionId>
   pickDirectory(): Promise<string | null>
+  isProjectlessWorkspace(workspace: WorkspaceView): boolean
 }
 
 type PickerProps = PropsRuntime<'conversation.hero.workspace'> & PickerActions & PropsLocale<typeof PROJECTLESS_LOCALE_NS>
@@ -48,6 +57,7 @@ function ProjectlessWorkspacePicker({
   createWorkspace,
   createProjectlessSession,
   pickDirectory,
+  isProjectlessWorkspace,
   t,
 }: PickerProps) {
   const workspaceState = useWorkspaces(state => state)
@@ -58,7 +68,12 @@ function ProjectlessWorkspacePicker({
     [anchorRef],
   )
 
-  const workspaceItems: MenuEntry[] = workspaceState.items.map(workspace => ({
+  const selection = resolvePickerSelection(
+    workspaceState.items,
+    selectedId,
+    isProjectlessWorkspace,
+  )
+  const workspaceItems: MenuEntry[] = selection.projects.map(workspace => ({
     id: workspace.workspaceId,
     label: workspace.title,
     icon: <IconFolderClose16 size={16} />,
@@ -116,7 +131,7 @@ function ProjectlessWorkspacePicker({
         anchor={null}
         items={workspaceItems}
         footer={footer}
-        selectedId={selectedId}
+        selectedId={selection.selectedId}
         onSelect={handleSelect}
         onClose={onClose}
         side="bottom"
@@ -166,20 +181,63 @@ export function apply(ctx: ClientContext): void {
     () => ctx.locale.register(PROJECTLESS_LOCALE_NS, projectlessLocales),
     `${PACKAGE_ID}: dictionaries`,
   )
+  const registry = createProjectlessRegistry()
+  const pendingWorkspaceIds = new Set<WorkspaceId>()
+  const claim = createAbandonClaim()
+  const rpc = ctx.connection.rpc as unknown as ClientConnectionRpc
+  const removeDirectory = (path: string) => requestRemoveProjectlessDirectory(rpc, path)
+  const isProjectlessWorkspace = (workspace: WorkspaceView): boolean => (
+    registry.has(workspace.workspaceId) || isProjectlessPath(workspace.path)
+  )
+  ctx.effect(() => {
+    let disposed = false
+    let stopSweep = (): void => {}
+    void requestProjectlessRoot(rpc).then(root => {
+      if (disposed) return
+      stopSweep = sweepAbandonedProjectlessWorkspaces(
+        ctx.workspaces,
+        ctx.sessions,
+        root,
+        removeDirectory,
+        pendingWorkspaceIds,
+        claim,
+      )
+    }).catch(console.error)
+    return () => {
+      disposed = true
+      stopSweep()
+    }
+  }, `${PACKAGE_ID}: sweep leftover unused workspaces`)
   const actions = (): PickerActions => ({
     createWorkspace: input => ctx.workspaces.create(input),
     pickDirectory: () => ctx.workspaces.pickDirectory(),
+    isProjectlessWorkspace,
     createProjectlessSession: async () => {
       const receipt = await createAndOpenProjectlessSession(
         ctx.workspaces,
         ctx.sessions,
         // The published Connection package augments the same Cordis key with
         // Host and Client faces; this file is bundled only for the Client face.
-        () => requestProjectlessDirectory(ctx.connection.rpc as unknown as ClientConnectionRpc),
+        () => requestProjectlessDirectory(rpc),
+        registry,
+        removeDirectory,
+        pendingWorkspaceIds,
       )
+      const translate = ctx.locale.bind(PROJECTLESS_LOCALE_NS)
+      await ctx.workspaces.rename(receipt.workspaceId, translate('picker.projectless')).catch(() => {})
       ctx.effect(
-        () => detachWorkspaceAfterFirstPrompt(ctx.workspaces, ctx.sessions, receipt),
-        `${PACKAGE_ID}: detach ${receipt.sessionId} after first prompt`,
+        () => {
+          const stop = watchTemporaryWorkspace(
+            ctx.workspaces,
+            ctx.sessions,
+            receipt,
+            removeDirectory,
+            claim,
+          )
+          pendingWorkspaceIds.delete(receipt.workspaceId)
+          return stop
+        },
+        `${PACKAGE_ID}: watch ${receipt.sessionId} temporary workspace`,
       )
       return receipt.sessionId
     },

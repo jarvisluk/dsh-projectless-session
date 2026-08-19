@@ -21,6 +21,8 @@ For UI changes, verify these transitions in an isolated DSH Web profile:
 2. The blank Session remains writable before its first prompt.
 3. After the first accepted prompt, the Session moves to “未分组”.
 4. After a DSH restart, the Session can be reopened and continued.
+5. Clicking “无工作区会话” without sending, then switching away, removes the
+   temporary Workspace from the picker and deletes its empty directory.
 
 Do not weaken the loopback authority on the filesystem RPC without adding a
 real authentication and authorization boundary.

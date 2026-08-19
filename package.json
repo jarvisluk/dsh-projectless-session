@@ -1,6 +1,6 @@
 {
   "name": "dsh-projectless-session",
-  "version": "0.4.0",
+  "version": "0.4.2",
   "description": "DeepSeek Harness Web plugin for date-organized projectless sessions under Documents/DSH",
   "keywords": [
     "deepseek",
