@@ -58,10 +58,11 @@ From GitHub:
 dsh plugin --profile web add github:jarvisluk/dsh-projectless-session
 ```
 
-From a release tarball:
+From the prebuilt tarball on the
+[latest GitHub Release](https://github.com/jarvisluk/dsh-projectless-session/releases/latest):
 
 ```bash
-dsh plugin --profile web add /absolute/path/dsh-projectless-session-0.4.2.tgz
+dsh plugin --profile web add /absolute/path/to/dsh-projectless-session.tgz
 ```
 
 Restart a running `dsh web` process after installation. To uninstall:
@@ -164,10 +165,12 @@ Workspaces, and rollback when Session creation fails.
 dsh plugin --profile web add github:jarvisluk/dsh-projectless-session
 ```
 
-从 Release 压缩包安装：
+从
+[最新 GitHub Release](https://github.com/jarvisluk/dsh-projectless-session/releases/latest)
+下载预构建压缩包后安装：
 
 ```bash
-dsh plugin --profile web add /absolute/path/dsh-projectless-session-0.4.2.tgz
+dsh plugin --profile web add /下载目录/dsh-projectless-session.tgz
 ```
 
 安装后重启正在运行的 `dsh web`。卸载：
