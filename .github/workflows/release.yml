@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -19,8 +23,31 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
-      - run: npm pack
+      - name: Validate release tag
+        shell: bash
+        run: |
+          package_version="$(node -p "require('./package.json').version")"
+          if [[ "$GITHUB_REF_NAME" != "v${package_version}" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match package version $package_version" >&2
+            exit 1
+          fi
+      - name: Pack release assets
+        id: pack
+        shell: bash
+        run: |
+          npm pack --json > npm-pack.json
+          package_file="$(node -e "const fs = require('fs'); console.log(JSON.parse(fs.readFileSync('npm-pack.json', 'utf8'))[0].filename)")"
+          cp "$package_file" dsh-projectless-session.tgz
+          sha256sum "$package_file" dsh-projectless-session.tgz > SHA256SUMS
+          echo "package_file=$package_file" >> "$GITHUB_OUTPUT"
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dsh-projectless-session-*.tgz --generate-notes --verify-tag
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          "${{ steps.pack.outputs.package_file }}"
+          dsh-projectless-session.tgz
+          SHA256SUMS
+          --generate-notes
+          --title "$GITHUB_REF_NAME"
+          --verify-tag
