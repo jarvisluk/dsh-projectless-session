@@ -8,7 +8,7 @@ import {
   resolveProjectlessRoot,
 } from './host/directories.ts'
 
-/** Host half: provides loopback-only RPCs for filesystem provisioning. */
+/** Host half: provides an authenticated DSH RPC for filesystem provisioning. */
 export const name = 'dsh-projectless-session'
 export const inject = ['connection']
 
@@ -48,26 +48,29 @@ function internalError(message: string) {
 /** Register the least-privilege channel used by the browser half. */
 export function apply(ctx: Context, config: Config = {}): void {
   const root = config.root ?? join(homedir(), 'Documents', 'DSH')
-  ctx.connection.rpc.handle('/projectless-session', async (endpoint, payload) => {
-    try {
-      if (endpoint === 'create-directory') {
-        return { ok: true, value: { path: await createProjectlessDirectory(root) } }
+  ctx.effect(() => ctx.connection.rpc.handle(
+    '/projectless-session',
+    async (endpoint, payload) => {
+      try {
+        if (endpoint === 'create-directory') {
+          return { ok: true, value: { path: await createProjectlessDirectory(root) } }
+        }
+        if (endpoint === 'get-root') {
+          return { ok: true, value: { root: await resolveProjectlessRoot(root) } }
+        }
+        if (endpoint === 'remove-directory') {
+          const path = pathPayload(payload)
+          if (path === undefined) return badRequest('remove-directory requires { path }')
+          return { ok: true, value: { result: await removeUnusedProjectlessDirectory(root, path) } }
+        }
+        return badRequest(`unknown projectless-session endpoint ${JSON.stringify(endpoint)}`)
+      } catch (reason) {
+        const message = reason instanceof Error ? reason.message : String(reason)
+        if (message.includes('absolute path') || message.includes('not a projectless')) {
+          return badRequest(message)
+        }
+        return internalError(message)
       }
-      if (endpoint === 'get-root') {
-        return { ok: true, value: { root: await resolveProjectlessRoot(root) } }
-      }
-      if (endpoint === 'remove-directory') {
-        const path = pathPayload(payload)
-        if (path === undefined) return badRequest('remove-directory requires { path }')
-        return { ok: true, value: { result: await removeUnusedProjectlessDirectory(root, path) } }
-      }
-      return badRequest(`unknown projectless-session endpoint ${JSON.stringify(endpoint)}`)
-    } catch (reason) {
-      const message = reason instanceof Error ? reason.message : String(reason)
-      if (message.includes('absolute path') || message.includes('not a projectless')) {
-        return badRequest(message)
-      }
-      return internalError(message)
-    }
-  }, { authority: 'loopback' })
+    },
+  ), 'dsh-projectless-session: rpc')
 }

@@ -1,10 +1,17 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { RefObject } from 'react'
 import type { ClientContext, SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ClientConnectionRpc } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type {
+  HostObservable,
+  PropsHooks,
+  PropsLocale,
+  PropsRenderSlots,
+  PropsRuntime,
+} from '@deepseek-ai/dsh-client-ui-slots'
+import type { DirectoryFlowOwnerProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import {
   Button,
   IconFolderClose16,
@@ -36,11 +43,18 @@ const ADD_WORKSPACE = '::add-workspace'
 interface PickerActions {
   createWorkspace(input: { path: string }): Promise<WorkspaceView>
   createProjectlessSession(): Promise<SessionId>
-  pickDirectory(): Promise<string | null>
   isProjectlessWorkspace(workspace: WorkspaceView): boolean
+  hooks: {
+    directoryFlow: HostObservable<boolean>
+  }
 }
 
-type PickerProps = PropsRuntime<'conversation.hero.workspace'> & PickerActions & PropsLocale<typeof PROJECTLESS_LOCALE_NS>
+type PickerProps =
+  PropsRuntime<'conversation.hero.workspace'>
+  & PropsRenderSlots<'conversation.hero.workspace.directoryFlow'>
+  & Omit<PickerActions, 'hooks'>
+  & PropsHooks<PickerActions['hooks']>
+  & PropsLocale<typeof PROJECTLESS_LOCALE_NS>
 
 function errorMessage(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason)
@@ -56,12 +70,14 @@ function ProjectlessWorkspacePicker({
   useWorkspaces,
   createWorkspace,
   createProjectlessSession,
-  pickDirectory,
   isProjectlessWorkspace,
+  useDirectoryFlow,
+  renderSlot,
   t,
 }: PickerProps) {
-  const workspaceState = useWorkspaces(state => state)
+  const workspaceState = useWorkspaces((state: { items: readonly WorkspaceView[] }) => state)
   const [busy, setBusy] = useState(false)
+  const [flowOpen, setFlowOpen] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
   const getAnchorRect = useCallback(
     () => (anchorRef as RefObject<HTMLElement | null> | undefined)?.current?.getBoundingClientRect() ?? null,
@@ -79,6 +95,10 @@ function ProjectlessWorkspacePicker({
     icon: <IconFolderClose16 size={16} />,
     disabled: busy,
   }))
+  const flowAvailable = useDirectoryFlow((occupied: boolean) => occupied)
+  useEffect(() => {
+    if (flowOpen && !flowAvailable) setFlowOpen(false)
+  }, [flowOpen, flowAvailable])
   const footer: MenuEntry[] = [
     {
       id: PROJECTLESS,
@@ -86,13 +106,15 @@ function ProjectlessWorkspacePicker({
       icon: <IconNewChatOutline16 size={16} />,
       disabled: busy,
     },
-    { type: 'separator', id: 'projectless-separator' },
-    {
+    ...flowAvailable ? [
+      { type: 'separator' as const, id: 'projectless-separator' },
+      {
       id: ADD_WORKSPACE,
       label: t('picker.addWorkspace'),
       icon: <IconPlusOutline16 size={16} />,
       disabled: busy,
-    },
+      },
+    ] : [],
   ]
 
   const run = (operation: () => Promise<void>): void => {
@@ -113,15 +135,31 @@ function ProjectlessWorkspacePicker({
     }
     if (id === ADD_WORKSPACE) {
       onClose()
-      run(async () => {
-        const path = await pickDirectory()
-        if (path === null) return
-        const workspace = await createWorkspace({ path })
-        onPick(workspace.workspaceId)
-      })
+      setModalError(null)
+      setFlowOpen(true)
       return
     }
     onPick(id as WorkspaceId)
+  }
+
+  const directoryFlowOwner: DirectoryFlowOwnerProps = {
+    open: flowOpen,
+    busy,
+    onPicked: path => {
+      run(async () => {
+        try {
+          const workspace = await createWorkspace({ path })
+          onPick(workspace.workspaceId)
+        } finally {
+          setFlowOpen(false)
+        }
+      })
+    },
+    onCancel: () => { setFlowOpen(false) },
+    onError: message => {
+      setFlowOpen(false)
+      setModalError(message)
+    },
   }
 
   return (
@@ -138,6 +176,7 @@ function ProjectlessWorkspacePicker({
         portal
         getAnchorRect={getAnchorRect}
       />
+      {renderSlot('conversation.hero.workspace.directoryFlow', directoryFlowOwner)}
       <Modal
         open={modalError !== null}
         onClose={() => { setModalError(null) }}
@@ -189,6 +228,10 @@ export function apply(ctx: ClientContext): void {
   const isProjectlessWorkspace = (workspace: WorkspaceView): boolean => (
     registry.has(workspace.workspaceId) || isProjectlessPath(workspace.path)
   )
+  const directoryFlow: HostObservable<boolean> = {
+    getSnapshot: () => ctx.slots.entries('conversation.hero.workspace.directoryFlow').length > 0,
+    subscribe: (listener: () => void) => ctx.slots.subscribe('conversation.hero.workspace.directoryFlow', listener),
+  }
   ctx.effect(() => {
     let disposed = false
     let stopSweep = (): void => {}
@@ -210,8 +253,8 @@ export function apply(ctx: ClientContext): void {
   }, `${PACKAGE_ID}: sweep leftover unused workspaces`)
   const actions = (): PickerActions => ({
     createWorkspace: input => ctx.workspaces.create(input),
-    pickDirectory: () => ctx.workspaces.pickDirectory(),
     isProjectlessWorkspace,
+    hooks: { directoryFlow },
     createProjectlessSession: async () => {
       const receipt = await createAndOpenProjectlessSession(
         ctx.workspaces,
@@ -247,6 +290,9 @@ export function apply(ctx: ClientContext): void {
     {
       name: 'conversation.hero.workspace',
       priority: -1,
+      children: {
+        'conversation.hero.workspace.directoryFlow': { kind: 'single', scope: 'root' },
+      },
       inject: actions,
       locale: PROJECTLESS_LOCALE_NS,
     },

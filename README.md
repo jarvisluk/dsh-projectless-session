@@ -20,7 +20,7 @@ complete English and Simplified Chinese dictionaries.
 
 ### How it works
 
-DSH `0.1.0-rc.6` disables its native blank-session composer when a Session has
+DSH `0.1.5-rc.2` disables its native blank-session composer when a Session has
 no registered Workspace. To retain the complete native composer—including
 agent preset, commands and attachments, access mode, model selection, and the
 send button—the plugin uses this lifecycle:
@@ -46,7 +46,7 @@ Finder metadata such as `.DS_Store` does not keep the directory.
 
 ### Compatibility
 
-- DeepSeek Harness `0.1.0-rc.6`
+- DeepSeek Harness `0.1.5-rc.2`
 - Node.js `22.19` or later
 - Local Web/Desktop profile
 
@@ -87,8 +87,8 @@ dsh plugin --profile web remove dsh-projectless-session
 - Keeps the Session resumable under **Ungrouped** across DSH restarts.
 - Switches plugin copy live between English and Simplified Chinese with the DSH
   Language setting.
-- Accepts filesystem RPC calls only from loopback pages, preventing a LAN page
-  from asking the Host to write under Documents.
+- Uses DSH's authenticated Connection channel for filesystem RPC calls and
+  unregisters the channel cleanly when the plugin unloads.
 - Restores DSH's built-in priority `0` Workspace picker automatically when the
   plugin is removed.
 
@@ -131,7 +131,7 @@ Workspaces, and rollback when Session creation fails.
 
 ### 工作方式
 
-在 DSH `0.1.0-rc.6` 中，没有已注册 Workspace 的空白 Session 会禁用原生
+在 DSH `0.1.5-rc.2` 中，没有已注册 Workspace 的空白 Session 会禁用原生
 编辑器。为了完整保留 Agent 预设、命令与附件、访问模式、模型选择和发送
 按钮，插件采用以下生命周期：
 
@@ -153,7 +153,7 @@ Workspaces, and rollback when Session creation fails.
 
 ### 兼容性
 
-- DeepSeek Harness `0.1.0-rc.6`
+- DeepSeek Harness `0.1.5-rc.2`
 - Node.js `22.19` 或更高版本
 - 本机 Web/Desktop profile
 
@@ -191,7 +191,7 @@ dsh plugin --profile web remove dsh-projectless-session
 - 若未发送消息，会注销仍空白的无工作区 Workspace。
 - Session 进入**未分组**，重启 DSH 后仍可恢复并继续。
 - 跟随 DSH Language 设置即时切换英文或简体中文。
-- 文件系统 RPC 仅允许 loopback 页面调用，LAN 页面不能让 Host 写入 Documents。
+- 文件系统 RPC 使用 DSH 的已认证 Connection 通道，并在插件卸载时干净注销。
 - 卸载插件后，DSH 内置优先级 `0` 的 Workspace 选择器自动恢复。
 
 ### 自定义根目录
