@@ -20,12 +20,13 @@ complete English and Simplified Chinese dictionaries.
 
 ### How it works
 
-DSH `0.1.5-rc.2` disables its native blank-session composer when a Session has
+DSH `0.2.0-rc.2` disables its native blank-session composer when a Session has
 no registered Workspace. To retain the complete native composer—including
 agent preset, commands and attachments, access mode, model selection, and the
 send button—the plugin uses this lifecycle:
 
-1. The Host creates a directory through a loopback-only DSH Connection RPC.
+1. The Host creates a directory through an authenticated DSH Connection
+   endpoint on the shared `/api` channel.
 2. The client registers that directory as a temporary Workspace.
 3. DSH creates and opens a Session in the temporary Workspace, so the standard
    blank-session UI remains fully available.
@@ -46,7 +47,7 @@ Finder metadata such as `.DS_Store` does not keep the directory.
 
 ### Compatibility
 
-- DeepSeek Harness `0.1.5-rc.2`
+- DeepSeek Harness `0.2.0-rc.2`
 - Node.js `22.19` or later
 - Local Web/Desktop profile
 
@@ -87,8 +88,10 @@ dsh plugin --profile web remove dsh-projectless-session
 - Keeps the Session resumable under **Ungrouped** across DSH restarts.
 - Switches plugin copy live between English and Simplified Chinese with the DSH
   Language setting.
-- Uses DSH's authenticated Connection channel for filesystem RPC calls and
-  unregisters the channel cleanly when the plugin unloads.
+- Uses DSH's authenticated `/api` Connection channel for filesystem calls and
+  removes its routes cleanly when the plugin unloads.
+- Keeps **Add workspace…** on DSH's composed directory flow (native chooser or
+  in-app browser) by mirroring it into the plugin picker's own slot.
 - Restores DSH's built-in priority `0` Workspace picker automatically when the
   plugin is removed.
 
@@ -131,11 +134,11 @@ Workspaces, and rollback when Session creation fails.
 
 ### 工作方式
 
-在 DSH `0.1.5-rc.2` 中，没有已注册 Workspace 的空白 Session 会禁用原生
+在 DSH `0.2.0-rc.2` 中，没有已注册 Workspace 的空白 Session 会禁用原生
 编辑器。为了完整保留 Agent 预设、命令与附件、访问模式、模型选择和发送
 按钮，插件采用以下生命周期：
 
-1. Host 通过仅允许 loopback 调用的 DSH Connection RPC 创建目录。
+1. Host 通过共享 `/api` 通道上已认证的 DSH Connection 接口创建目录。
 2. 客户端把该目录注册为临时 Workspace。
 3. DSH 在临时 Workspace 中创建并打开 Session，因此空白会话继续使用完整
    的原生界面。
@@ -153,7 +156,7 @@ Workspaces, and rollback when Session creation fails.
 
 ### 兼容性
 
-- DeepSeek Harness `0.1.5-rc.2`
+- DeepSeek Harness `0.2.0-rc.2`
 - Node.js `22.19` 或更高版本
 - 本机 Web/Desktop profile
 
@@ -191,7 +194,9 @@ dsh plugin --profile web remove dsh-projectless-session
 - 若未发送消息，会注销仍空白的无工作区 Workspace。
 - Session 进入**未分组**，重启 DSH 后仍可恢复并继续。
 - 跟随 DSH Language 设置即时切换英文或简体中文。
-- 文件系统 RPC 使用 DSH 的已认证 Connection 通道，并在插件卸载时干净注销。
+- 文件系统调用使用 DSH 已认证的 `/api` Connection 通道，并在插件卸载时干净移除路由。
+- **添加工作区…** 继续使用 DSH 组合的目录选择流程（原生选择器或应用内浏览器），
+  插件会把它镜像到自身选择器的插槽中。
 - 卸载插件后，DSH 内置优先级 `0` 的 Workspace 选择器自动恢复。
 
 ### 自定义根目录

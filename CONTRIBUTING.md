@@ -24,5 +24,6 @@ For UI changes, verify these transitions in an isolated DSH Web profile:
 5. Clicking “无工作区会话” without sending, then switching away, removes the
    temporary Workspace from the picker and deletes its empty directory.
 
-Do not weaken the loopback authority on the filesystem RPC without adding a
-real authentication and authorization boundary.
+Keep the filesystem endpoints on DSH's authenticated `/api` Connection channel;
+do not expose them on a route that skips its Host/Origin fence and browser
+authentication.

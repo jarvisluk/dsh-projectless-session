@@ -1,10 +1,16 @@
-import type { SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { ClientConnectionRpc } from '@deepseek-ai/dsh-client-connection/client'
 import { isManagedSessionPath, isProjectlessPath } from '../shared/paths.ts'
+import { PROJECTLESS_RPC_CHANNEL, projectlessEndpoint } from '../shared/rpc.ts'
 
 export { isProjectlessPath }
 
-/** Public DSH faces required to turn a directory into an ungrouped Session. */
+/**
+ * Public DSH faces required to turn a directory into an ungrouped Session:
+ * Workspace registration from `ctx.workspaces`, blank-Session connection and
+ * archival from `ctx.uiWorkspace`.
+ */
 export interface ProjectlessSessionHost {
   create(input: { path: string }): Promise<WorkspaceView>
   connectWorkspace(workspaceId: WorkspaceId): Promise<SessionId>
@@ -12,9 +18,16 @@ export interface ProjectlessSessionHost {
   archiveSession(sessionId: SessionId): Promise<void>
 }
 
+/** Reference source DSH's main Conversation view retains its Session under. */
+export const MAIN_VIEW_SOURCE = 'mainView'
+
+export interface SessionRowSlice {
+  blank: boolean
+  retainedBy?: Readonly<Partial<Record<string, number>>> | undefined
+}
+
 export interface SessionListSlice {
-  current?: SessionId | undefined
-  byId: Partial<Record<SessionId, { blank: boolean }>>
+  byId: Partial<Record<SessionId, SessionRowSlice>>
 }
 
 export interface SessionNavigator {
@@ -27,7 +40,12 @@ export interface SessionNavigator {
 
 export interface WorkspaceListSlice {
   items: readonly Pick<WorkspaceView, 'workspaceId' | 'path' | 'sessionIds'>[]
-  baselinesReady?: boolean | undefined
+  phase?: 'pending' | 'ready' | undefined
+}
+
+/** DSH 0.2 has no `current` field; the main view holds a `mainView` reference instead. */
+export function isCurrentSession(sessions: SessionListSlice, sessionId: SessionId): boolean {
+  return (sessions.byId[sessionId]?.retainedBy?.[MAIN_VIEW_SOURCE] ?? 0) > 0
 }
 
 export interface WorkspaceNavigator {
@@ -131,7 +149,7 @@ function expectPathObject(value: unknown, key: 'path' | 'root', label: string): 
 /** Call the plugin Host half and validate its intentionally tiny response. */
 export async function requestProjectlessDirectory(rpc: ClientConnectionRpc): Promise<string> {
   return expectPathObject(
-    rpcValue(await rpc.call('/projectless-session', 'create-directory', {}), 'projectless session Host'),
+    rpcValue(await rpc.call(PROJECTLESS_RPC_CHANNEL, projectlessEndpoint('create-directory'), {}), 'projectless session Host'),
     'path',
     'projectless session Host',
   )
@@ -139,14 +157,14 @@ export async function requestProjectlessDirectory(rpc: ClientConnectionRpc): Pro
 
 export async function requestProjectlessRoot(rpc: ClientConnectionRpc): Promise<string> {
   return expectPathObject(
-    rpcValue(await rpc.call('/projectless-session', 'get-root', {}), 'projectless session Host'),
+    rpcValue(await rpc.call(PROJECTLESS_RPC_CHANNEL, projectlessEndpoint('get-root'), {}), 'projectless session Host'),
     'root',
     'projectless session Host',
   )
 }
 
 export async function requestRemoveProjectlessDirectory(rpc: ClientConnectionRpc, path: string): Promise<void> {
-  rpcValue(await rpc.call('/projectless-session', 'remove-directory', { path }), 'projectless session Host')
+  rpcValue(await rpc.call(PROJECTLESS_RPC_CHANNEL, projectlessEndpoint('remove-directory'), { path }), 'projectless session Host')
 }
 
 /**
@@ -206,7 +224,7 @@ export function isAbandonedProjectlessWorkspace(
   // races create→connectWorkspace and surfaces workspace-not-found.
   if (workspace.sessionIds.length === 0) return false
   for (const sessionId of workspace.sessionIds) {
-    if (sessions.current === sessionId) return false
+    if (isCurrentSession(sessions, sessionId)) return false
     const row = sessions.byId[sessionId]
     if (row === undefined || row.blank !== true) return false
   }
@@ -275,7 +293,7 @@ export function watchTemporaryWorkspace(
       finish(async () => { await workspaces.delete(receipt.workspaceId) })
       return
     }
-    if (snapshot.current === receipt.sessionId) return
+    if (isCurrentSession(snapshot, receipt.sessionId)) return
     abandon()
   }
 
@@ -333,7 +351,7 @@ export function sweepAbandonedProjectlessWorkspaces(
   const reconcile = (): void => {
     if (!active) return
     const workspaceState = workspaces.list.getSnapshot()
-    if (workspaceState.baselinesReady === false) return
+    if (workspaceState.phase === 'pending') return
     for (const leftover of findAbandonedProjectlessWorkspaces(
       workspaceState.items,
       sessions.list.getSnapshot(),

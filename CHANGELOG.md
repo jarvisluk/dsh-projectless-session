@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.0 - 2026-09-29
+
+- Update all DSH client packages for DeepSeek Harness `0.2.0-rc.2`.
+- Replace the removed `dsh-client-runtime` faces with the split
+  `ctx.workspaces` (Workspace Controller), `ctx.sessions` (Session
+  Controller) and `ctx.uiWorkspace` (blank-Session connection, navigation and
+  archival) services.
+- Detect the open Session through its `mainView` reference now that the
+  Session list no longer carries a `current` field, and wait for the Workspace
+  list `phase` before sweeping leftovers.
+- Use the renamed `*Regular` primitive icons.
+- Serve the Host endpoints as exact Fetch routes on the authenticated `/api`
+  channel: DSH `0.2.0-rc.2`'s `connection.rpc.handle` resolves `webServer` on
+  the Connection plugin's own fiber and cannot mount third-party channels.
+- Mirror DSH's hero directory-flow occupant into the picker's own hole, since
+  a hole can now be declared by only one entry and the built-in picker owns
+  `conversation.hero.workspace.directoryFlow`.
+
 ## 0.5.0 - 2026-09-14
 
 - Update all DSH client packages for DeepSeek Harness `0.1.5-rc.2`.
