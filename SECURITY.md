@@ -12,7 +12,8 @@ in an issue.
 
 ## Security boundary
 
-The Host operation that creates directories is exposed through a dedicated
-DSH Connection RPC channel with `loopback` authority. It accepts no path from
+The Host operation that creates directories is exposed as exact Fetch routes
+under DSH's shared `/api` Connection channel, behind its Host/Origin fence and
+browser authentication. It accepts no path from
 the browser: the root is Host configuration and all generated child names are
 fixed-format date/time values plus cryptographic randomness.

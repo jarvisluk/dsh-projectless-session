@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type {
-  SessionId,
-  WorkspaceId,
-  WorkspaceView,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import {
   PROJECTLESS_ENTRY_ID,
   createAbandonClaim,
@@ -18,6 +15,9 @@ import {
   watchTemporaryWorkspace,
   type ProjectlessSessionHost,
 } from '../src/client/session.ts'
+
+/** How DSH 0.2 marks the Session shown in the main Conversation view. */
+const MAIN_VIEW = { mainView: 1 }
 
 test('keeps the blank Session usable, then detaches after the first accepted prompt', async () => {
   const operations: string[] = []
@@ -62,7 +62,7 @@ test('keeps the blank Session usable, then detaches after the first accepted pro
       operations.push('session:open')
     },
     list: {
-      getSnapshot: () => ({ current: sessionId, byId: { [sessionId]: { blank } } }),
+      getSnapshot: () => ({ byId: { [sessionId]: { blank, retainedBy: MAIN_VIEW } } }),
       subscribe(listener: () => void) {
         listeners.add(listener)
         return () => { listeners.delete(listener) }
@@ -205,7 +205,7 @@ test('watchTemporaryWorkspace detaches after the first accepted prompt without r
   const sessions = {
     open() {},
     list: {
-      getSnapshot: () => ({ current: sessionId, byId: { [sessionId]: { blank } } }),
+      getSnapshot: () => ({ byId: { [sessionId]: { blank, retainedBy: MAIN_VIEW } } }),
       subscribe(listener: () => void) {
         listeners.add(listener)
         return () => { listeners.delete(listener) }
@@ -244,7 +244,9 @@ test('watchTemporaryWorkspace abandons a still-blank Session after the user leav
   const sessions = {
     open() {},
     list: {
-      getSnapshot: () => ({ current, byId: { [sessionId]: { blank: true } } }),
+      getSnapshot: () => ({
+        byId: { [sessionId]: { blank: true, retainedBy: current === sessionId ? MAIN_VIEW : {} } },
+      }),
       subscribe(listener: () => void) {
         listeners.add(listener)
         return () => { listeners.delete(listener) }
@@ -288,7 +290,7 @@ test('watchTemporaryWorkspace abandons a still-blank Session when the watcher is
   const sessions = {
     open() {},
     list: {
-      getSnapshot: () => ({ current: sessionId, byId: { [sessionId]: { blank: true } } }),
+      getSnapshot: () => ({ byId: { [sessionId]: { blank: true, retainedBy: MAIN_VIEW } } }),
       subscribe: () => () => {},
     },
   }
@@ -317,7 +319,7 @@ test('watchTemporaryWorkspace does not abandon while the blank Session is curren
   const sessions = {
     open() {},
     list: {
-      getSnapshot: () => ({ current: sessionId, byId: { [sessionId]: { blank: true } } }),
+      getSnapshot: () => ({ byId: { [sessionId]: { blank: true, retainedBy: MAIN_VIEW } } }),
       subscribe: () => () => {},
     },
   }
@@ -357,10 +359,9 @@ test('findAbandonedProjectlessWorkspaces skips the current Session and unmanaged
       workspaceView(realId, '/Users/test/codespace/app', [usedSession]),
     ],
     {
-      current: currentSession,
       byId: {
         [leftoverSession]: { blank: true },
-        [currentSession]: { blank: true },
+        [currentSession]: { blank: true, retainedBy: MAIN_VIEW },
         [usedSession]: { blank: false },
       },
     },
@@ -378,7 +379,7 @@ test('sweepAbandonedProjectlessWorkspaces removes leftover unused registrations'
   const items = [workspaceView(leftoverId, leftoverPath, [leftoverSession])]
   const workspaces = {
     list: {
-      getSnapshot: () => ({ items, baselinesReady: true }),
+      getSnapshot: () => ({ items, phase: 'ready' as const }),
       subscribe: () => () => {},
     },
     async delete(id: WorkspaceId) { operations.push(`delete:${id}`) },

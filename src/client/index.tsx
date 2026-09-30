@@ -1,22 +1,27 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { RefObject } from 'react'
-import type { ClientContext, SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ClientConnectionRpc } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {
   HostObservable,
   PropsHooks,
   PropsLocale,
   PropsRenderSlots,
   PropsRuntime,
+  StoredEntry,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import type { DirectoryFlowOwnerProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type { DirectoryFlowOwnerProps, UiWorkspace } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import {
   Button,
-  IconFolderClose16,
-  IconNewChatOutline16,
-  IconPlusOutline16,
+  IconFolderCloseRegular,
+  IconNewChatOutlineRegular,
+  IconPlusOutlineRegular,
   Menu,
   Modal,
   type MenuEntry,
@@ -39,6 +44,19 @@ import { PROJECTLESS_LOCALE_NS, projectlessLocales } from './locales.ts'
 const PACKAGE_ID = 'dsh-projectless-session'
 const PROJECTLESS = PROJECTLESS_ENTRY_ID
 const ADD_WORKSPACE = '::add-workspace'
+const DSH_DIRECTORY_FLOW = 'conversation.hero.workspace.directoryFlow'
+const DIRECTORY_FLOW = 'dsh-projectless-session.directoryFlow'
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface SlotMap {
+    /** This picker's own directory-flow hole, mirrored from DSH's hero hole. */
+    'dsh-projectless-session.directoryFlow': {
+      kind: 'single'
+      scope: 'root'
+      owner: DirectoryFlowOwnerProps
+    }
+  }
+}
 
 interface PickerActions {
   createWorkspace(input: { path: string }): Promise<WorkspaceView>
@@ -51,7 +69,7 @@ interface PickerActions {
 
 type PickerProps =
   PropsRuntime<'conversation.hero.workspace'>
-  & PropsRenderSlots<'conversation.hero.workspace.directoryFlow'>
+  & PropsRenderSlots<typeof DIRECTORY_FLOW>
   & Omit<PickerActions, 'hooks'>
   & PropsHooks<PickerActions['hooks']>
   & PropsLocale<typeof PROJECTLESS_LOCALE_NS>
@@ -92,7 +110,7 @@ function ProjectlessWorkspacePicker({
   const workspaceItems: MenuEntry[] = selection.projects.map(workspace => ({
     id: workspace.workspaceId,
     label: workspace.title,
-    icon: <IconFolderClose16 size={16} />,
+    icon: <IconFolderCloseRegular size={16} />,
     disabled: busy,
   }))
   const flowAvailable = useDirectoryFlow((occupied: boolean) => occupied)
@@ -103,7 +121,7 @@ function ProjectlessWorkspacePicker({
     {
       id: PROJECTLESS,
       label: t('picker.projectless'),
-      icon: <IconNewChatOutline16 size={16} />,
+      icon: <IconNewChatOutlineRegular size={16} />,
       disabled: busy,
     },
     ...flowAvailable ? [
@@ -111,7 +129,7 @@ function ProjectlessWorkspacePicker({
       {
       id: ADD_WORKSPACE,
       label: t('picker.addWorkspace'),
-      icon: <IconPlusOutline16 size={16} />,
+      icon: <IconPlusOutlineRegular size={16} />,
       disabled: busy,
       },
     ] : [],
@@ -176,7 +194,7 @@ function ProjectlessWorkspacePicker({
         portal
         getAnchorRect={getAnchorRect}
       />
-      {renderSlot('conversation.hero.workspace.directoryFlow', directoryFlowOwner)}
+      {renderSlot(DIRECTORY_FLOW, directoryFlowOwner)}
       <Modal
         open={modalError !== null}
         onClose={() => { setModalError(null) }}
@@ -210,11 +228,72 @@ function installStyles(): () => void {
   return () => { style.remove() }
 }
 
+type LooseRegister = (options: Record<string, unknown>, component: unknown) => () => void
+
+/**
+ * DSH 0.2 lets exactly one entry declare a hole and render only holes it
+ * declared, and the built-in picker already declares the hero directory-flow
+ * hole. Re-register whatever occupies that hole (the native chooser or the
+ * in-app browser) into this picker's own hole so "Add workspace…" keeps the
+ * composed picking interaction.
+ */
+function mirrorDirectoryFlow(slots: SlotRegistry): () => void {
+  const register = slots.register.bind(slots) as unknown as LooseRegister
+  let mirrored: readonly StoredEntry[] | undefined
+  let disposers: (() => void)[] = []
+  const release = (): void => {
+    for (const dispose of disposers) dispose()
+    disposers = []
+  }
+  const sync = (): void => {
+    const entries = slots.entries(DSH_DIRECTORY_FLOW)
+    if (entries === mirrored) return
+    mirrored = entries
+    release()
+    disposers = entries.map(entry => register({
+      name: DIRECTORY_FLOW,
+      ...entry.options.priority === undefined ? {} : { priority: entry.options.priority },
+      ...entry.inject === undefined ? {} : { inject: entry.inject },
+      ...entry.locale === undefined ? {} : { locale: entry.locale },
+    }, entry.component))
+  }
+  const unsubscribe = slots.subscribe(DSH_DIRECTORY_FLOW, sync)
+  sync()
+  return () => {
+    unsubscribe()
+    release()
+  }
+}
+
 export const name = PACKAGE_ID
-export const inject = ['connection', 'locale', 'slots', 'sessions', 'workspaces']
+export const inject = ['connection', 'locale', 'slots', 'sessions', 'workspaces', 'uiWorkspace']
+
+/**
+ * DSH 0.2 split the old combined Workspace face: registrations live on
+ * `ctx.workspaces`, blank-Session connection, navigation and archival on
+ * `ctx.uiWorkspace`.
+ */
+function projectlessHost(ctx: Context) {
+  const workspaces = ctx.workspaces
+  const ui: UiWorkspace = ctx.uiWorkspace
+  const sessions = {
+    list: ctx.sessions.list,
+    open: (sessionId: SessionId) => { ui.openSession(sessionId) },
+  }
+  const host = {
+    list: workspaces.list,
+    create: (input: { path: string }) => workspaces.create(input),
+    delete: (workspaceId: WorkspaceId) => workspaces.delete(workspaceId),
+    rename: (workspaceId: WorkspaceId, title: string) => workspaces.rename(workspaceId, title),
+    connectWorkspace: (workspaceId: WorkspaceId) => ui.connectWorkspace(workspaceId),
+    archiveSession: (sessionId: SessionId) => ui.archiveSession(sessionId),
+  }
+  return { host, sessions }
+}
 
 /** Install a priority -1 picker; DSH's built-in priority 0 picker remains the automatic fallback. */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
+  const { host, sessions } = projectlessHost(ctx)
   ctx.effect(installStyles, `${PACKAGE_ID}: styles`)
   ctx.effect(
     () => ctx.locale.register(PROJECTLESS_LOCALE_NS, projectlessLocales),
@@ -229,8 +308,8 @@ export function apply(ctx: ClientContext): void {
     registry.has(workspace.workspaceId) || isProjectlessPath(workspace.path)
   )
   const directoryFlow: HostObservable<boolean> = {
-    getSnapshot: () => ctx.slots.entries('conversation.hero.workspace.directoryFlow').length > 0,
-    subscribe: (listener: () => void) => ctx.slots.subscribe('conversation.hero.workspace.directoryFlow', listener),
+    getSnapshot: () => ctx.slots.entries(DIRECTORY_FLOW).length > 0,
+    subscribe: (listener: () => void) => ctx.slots.subscribe(DIRECTORY_FLOW, listener),
   }
   ctx.effect(() => {
     let disposed = false
@@ -238,8 +317,8 @@ export function apply(ctx: ClientContext): void {
     void requestProjectlessRoot(rpc).then(root => {
       if (disposed) return
       stopSweep = sweepAbandonedProjectlessWorkspaces(
-        ctx.workspaces,
-        ctx.sessions,
+        host,
+        sessions,
         root,
         removeDirectory,
         pendingWorkspaceIds,
@@ -252,13 +331,13 @@ export function apply(ctx: ClientContext): void {
     }
   }, `${PACKAGE_ID}: sweep leftover unused workspaces`)
   const actions = (): PickerActions => ({
-    createWorkspace: input => ctx.workspaces.create(input),
+    createWorkspace: input => host.create(input),
     isProjectlessWorkspace,
     hooks: { directoryFlow },
     createProjectlessSession: async () => {
       const receipt = await createAndOpenProjectlessSession(
-        ctx.workspaces,
-        ctx.sessions,
+        host,
+        sessions,
         // The published Connection package augments the same Cordis key with
         // Host and Client faces; this file is bundled only for the Client face.
         () => requestProjectlessDirectory(rpc),
@@ -267,12 +346,12 @@ export function apply(ctx: ClientContext): void {
         pendingWorkspaceIds,
       )
       const translate = ctx.locale.bind(PROJECTLESS_LOCALE_NS)
-      await ctx.workspaces.rename(receipt.workspaceId, translate('picker.projectless')).catch(() => {})
+      await host.rename(receipt.workspaceId, translate('picker.projectless')).catch(() => {})
       ctx.effect(
         () => {
           const stop = watchTemporaryWorkspace(
-            ctx.workspaces,
-            ctx.sessions,
+            host,
+            sessions,
             receipt,
             removeDirectory,
             claim,
@@ -291,11 +370,12 @@ export function apply(ctx: ClientContext): void {
       name: 'conversation.hero.workspace',
       priority: -1,
       children: {
-        'conversation.hero.workspace.directoryFlow': { kind: 'single', scope: 'root' },
+        [DIRECTORY_FLOW]: { kind: 'single', scope: 'root' },
       },
       inject: actions,
       locale: PROJECTLESS_LOCALE_NS,
     },
     ProjectlessWorkspacePicker,
   ))
+  ctx.slots.inject(DIRECTORY_FLOW, () => mirrorDirectoryFlow(ctx.slots))
 }
