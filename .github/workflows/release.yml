@@ -54,7 +54,8 @@ jobs:
         run: |
           name="${{ steps.pack.outputs.name }}"
           version="${{ steps.pack.outputs.version }}"
-          if npm view "${name}@${version}" version >/dev/null 2>&1; then
+          manifest="https://registry.npmjs.org/${name}/${version}"
+          if curl -fsS -o /dev/null "$manifest"; then
             echo "result=exists" >> "$GITHUB_OUTPUT"
             echo "${name}@${version} is already on npm; skipping publish."
           else
@@ -67,10 +68,14 @@ jobs:
         run: |
           name="${{ steps.pack.outputs.name }}"
           version="${{ steps.pack.outputs.version }}"
+          manifest="https://registry.npmjs.org/${name}/${version}"
           want="$(node -e "const c=require('crypto'),fs=require('fs');const b=fs.readFileSync('${{ steps.pack.outputs.package_file }}');console.log('sha512-'+c.createHash('sha512').update(b).digest('base64'))")"
+          read_integrity() {
+            curl -fsS "$manifest" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{process.stdout.write(JSON.parse(s).dist.integrity||'')}catch{}})"
+          }
           got=''
-          for _ in $(seq 1 12); do
-            got="$(npm view "${name}@${version}" dist.integrity 2>/dev/null || true)"
+          for _ in $(seq 1 24); do
+            got="$(read_integrity)"
             if [[ "$got" == "$want" ]]; then
               echo "registry integrity matches the packed artifact: $got"
               exit 0
