@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -21,6 +22,7 @@ jobs:
         with:
           node-version: '22.19'
           cache: npm
+          registry-url: 'https://registry.npmjs.org'
       - run: npm ci
       - run: npm run verify
       - name: Validate release tag
@@ -35,11 +37,49 @@ jobs:
         id: pack
         shell: bash
         run: |
+          name="$(node -p "require('./package.json').name")"
+          version="$(node -p "require('./package.json').version")"
           npm pack --json > npm-pack.json
           package_file="$(node -e "const fs = require('fs'); console.log(JSON.parse(fs.readFileSync('npm-pack.json', 'utf8'))[0].filename)")"
           cp "$package_file" dsh-projectless-session.tgz
           sha256sum "$package_file" dsh-projectless-session.tgz > SHA256SUMS
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "package_file=$package_file" >> "$GITHUB_OUTPUT"
+      - name: Upgrade npm for OIDC publishing
+        run: npm install -g "npm@^11.15.0"
+      - name: Publish to npm
+        id: publish
+        shell: bash
+        run: |
+          name="${{ steps.pack.outputs.name }}"
+          version="${{ steps.pack.outputs.version }}"
+          if npm view "${name}@${version}" version >/dev/null 2>&1; then
+            echo "result=exists" >> "$GITHUB_OUTPUT"
+            echo "${name}@${version} is already on npm; skipping publish."
+          else
+            npm publish "${{ steps.pack.outputs.package_file }}" --provenance --access public
+            echo "result=published" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verify the npm tarball matches the release asset
+        if: steps.publish.outputs.result == 'published'
+        shell: bash
+        run: |
+          name="${{ steps.pack.outputs.name }}"
+          version="${{ steps.pack.outputs.version }}"
+          want="$(node -e "const c=require('crypto'),fs=require('fs');const b=fs.readFileSync('${{ steps.pack.outputs.package_file }}');console.log('sha512-'+c.createHash('sha512').update(b).digest('base64'))")"
+          got=''
+          for _ in $(seq 1 12); do
+            got="$(npm view "${name}@${version}" dist.integrity 2>/dev/null || true)"
+            if [[ "$got" == "$want" ]]; then
+              echo "registry integrity matches the packed artifact: $got"
+              exit 0
+            fi
+            echo "registry reports '${got}'; waiting for propagation"
+            sleep 10
+          done
+          echo "registry integrity '${got}' does not match the packed artifact '${want}'" >&2
+          exit 1
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

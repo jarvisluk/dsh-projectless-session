@@ -53,18 +53,34 @@ Finder metadata such as `.DS_Store` does not keep the directory.
 
 ### Install
 
-From GitHub:
+From npm (recommended):
+
+```bash
+dsh plugin --profile web add dsh-projectless-session
+```
+
+From GitHub source:
 
 ```bash
 dsh plugin --profile web add github:jarvisluk/dsh-projectless-session
 ```
 
-From the prebuilt tarball on the
-[latest GitHub Release](https://github.com/jarvisluk/dsh-projectless-session/releases/latest):
+Offline, from the prebuilt tarball on the
+[latest GitHub Release](https://github.com/jarvisluk/dsh-projectless-session/releases/latest)
+— download the asset, then install that local file:
 
 ```bash
 dsh plugin --profile web add /absolute/path/to/dsh-projectless-session.tgz
 ```
+
+> **Do not hand pnpm a release-asset URL such as
+> `https://github.com/…/releases/latest/download/dsh-projectless-session.tgz`.**
+> That address is mutable and pnpm 11 (the DSH Desktop profile uses
+> `nodeLinker: hoisted`) caches it by URL. On a cache hit pnpm writes the
+> resolution with no `integrity` field, aborts with
+> `ERR_PNPM_MISSING_TARBALL_INTEGRITY`, and can even resolve a stale version.
+> The npm package, the `github:` shortcut, and a downloaded local file all pin
+> an immutable artifact instead.
 
 Restart a running `dsh web` process after installation. To uninstall:
 
@@ -162,19 +178,33 @@ Workspaces, and rollback when Session creation fails.
 
 ### 安装
 
-从 GitHub 安装：
+从 npm 安装（推荐）：
+
+```bash
+dsh plugin --profile web add dsh-projectless-session
+```
+
+从 GitHub 源码安装：
 
 ```bash
 dsh plugin --profile web add github:jarvisluk/dsh-projectless-session
 ```
 
-从
+离线安装：从
 [最新 GitHub Release](https://github.com/jarvisluk/dsh-projectless-session/releases/latest)
-下载预构建压缩包后安装：
+下载预构建压缩包到本地后再安装：
 
 ```bash
 dsh plugin --profile web add /下载目录/dsh-projectless-session.tgz
 ```
+
+> **不要把 Release 资产地址直接交给 pnpm**，例如
+> `https://github.com/…/releases/latest/download/dsh-projectless-session.tgz`。
+> 这个地址是可变的，而 pnpm 11（DSH Desktop profile 使用
+> `nodeLinker: hoisted`）按 URL 缓存它：命中缓存时写出的解析结果没有
+> `integrity` 字段，安装会以 `ERR_PNPM_MISSING_TARBALL_INTEGRITY` 失败，甚至
+> 可能解析到过期版本。npm 包、`github:` 简写和下载到本地的文件都指向不可变
+> 产物，请使用其中之一。
 
 安装后重启正在运行的 `dsh web`。卸载：
 
