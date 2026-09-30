@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.1 - 2026-10-01
+
+- Publish to the npm registry from the release workflow through GitHub
+  Actions trusted publishing (OIDC), and attach a byte-identical tarball to
+  each GitHub Release.
+- Correct the install instructions: use the npm package, the `github:`
+  shortcut, or a downloaded local file. A mutable
+  `releases/latest/download/...` URL is not a valid pnpm target.
+
 ## 0.6.0 - 2026-09-29
 
 - Update all DSH client packages for DeepSeek Harness `0.2.0-rc.2`.
