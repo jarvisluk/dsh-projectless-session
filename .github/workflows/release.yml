@@ -71,7 +71,7 @@ jobs:
           manifest="https://registry.npmjs.org/${name}/${version}"
           want="$(node -e "const c=require('crypto'),fs=require('fs');const b=fs.readFileSync('${{ steps.pack.outputs.package_file }}');console.log('sha512-'+c.createHash('sha512').update(b).digest('base64'))")"
           read_integrity() {
-            curl -fsS "$manifest" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{process.stdout.write(JSON.parse(s).dist.integrity||'')}catch{}})"
+            curl -fsS "$manifest" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{process.stdout.write(JSON.parse(s).dist.integrity||'')}catch{}})" || true
           }
           got=''
           for _ in $(seq 1 24); do
