@@ -20,7 +20,7 @@ complete English and Simplified Chinese dictionaries.
 
 ### How it works
 
-DSH `0.2.0-rc.2` disables its native blank-session composer when a Session has
+DSH `0.2.x` disables its native blank-session composer when a Session has
 no registered Workspace. To retain the complete native composer—including
 agent preset, commands and attachments, access mode, model selection, and the
 send button—the plugin uses this lifecycle:
@@ -47,7 +47,7 @@ Finder metadata such as `.DS_Store` does not keep the directory.
 
 ### Compatibility
 
-- DeepSeek Harness `0.2.0-rc.2`
+- DeepSeek Harness `0.2.0-rc.2` through `0.2.x` (tested with `0.2.1-rc.2`)
 - Node.js `22.19` or later
 - Local Web/Desktop profile
 
@@ -150,7 +150,7 @@ Workspaces, and rollback when Session creation fails.
 
 ### 工作方式
 
-在 DSH `0.2.0-rc.2` 中，没有已注册 Workspace 的空白 Session 会禁用原生
+在 DSH `0.2.x` 中，没有已注册 Workspace 的空白 Session 会禁用原生
 编辑器。为了完整保留 Agent 预设、命令与附件、访问模式、模型选择和发送
 按钮，插件采用以下生命周期：
 
@@ -172,7 +172,7 @@ Workspaces, and rollback when Session creation fails.
 
 ### 兼容性
 
-- DeepSeek Harness `0.2.0-rc.2`
+- DeepSeek Harness `0.2.0-rc.2` 至 `0.2.x`（已用 `0.2.1-rc.2` 验证）
 - Node.js `22.19` 或更高版本
 - 本机 Web/Desktop profile
 

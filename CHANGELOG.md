@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0 - 2026-10-23
+
+- Test against DeepSeek Harness `0.2.1-rc.2` while keeping runtime support for
+  `0.2.0-rc.2`.
+- Declare `engines.dsh` (`>=0.2.0-rc.2 <0.3.0-0`) so DSH's plugin compatibility
+  check reads the supported range directly instead of inferring it from the
+  DSH peer dependencies.
+- Widen every DSH peer range to `^0.2.0-rc.2 || ^0.2.1-rc.2`. The union keeps
+  npm's prerelease peer resolution working on both `0.2.0` and `0.2.1`, while
+  `engines.dsh` covers later `0.2.x` releases without another plugin release.
+- Keep the existing blank-session lifecycle: `0.2.1` adds draft
+  initialization and Agent-preset options to Workspace navigation, but the
+  projectless flow still creates a fresh temporary Workspace and connects a
+  blank Session through the unchanged `ctx.workspaces`, `ctx.sessions`, and
+  `ctx.uiWorkspace` services.
+
 ## 0.6.1 - 2026-10-01
 
 - Publish to the npm registry from the release workflow through GitHub
